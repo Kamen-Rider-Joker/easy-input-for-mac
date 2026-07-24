@@ -10,6 +10,8 @@ Add an app rule when one app should always use one input method. ShiftType appli
 
 ShiftType works on macOS Ventura 13 or higher.
 
+![ShiftType About panel and App Rules window](Assets/Screenshot.jpg)
+
 ## Features
 
 - Tap either Shift key by itself to cycle through all enabled input methods.
