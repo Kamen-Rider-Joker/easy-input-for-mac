@@ -65,6 +65,10 @@ SHIFTTYPE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./bund
 
 Set `SHIFTTYPE_DEBUG=1` when launching a development build to write bounded diagnostic logs under `~/Library/Logs/ShiftType`.
 
+## Sponsors
+
+- **EzTranslate** — [翻譯拍照](https://eztranslate.com.tw/)，快速又精準
+
 ## License
 
 [MIT](./LICENSE)
