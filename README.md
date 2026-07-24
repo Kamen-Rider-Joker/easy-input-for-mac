@@ -1,4 +1,4 @@
-<p align="center">
+<p align="left">
   <img src="Assets/AppIcon.png" width="128" height="128" alt="ShiftType app icon">
 </p>
 
