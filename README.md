@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="Assets/AppIcon.png" width="128" height="128" alt="ShiftType app icon">
+</p>
+
 # ShiftType
 
 ShiftType is a lightweight macOS menu bar app that cycles through every enabled input method when you tap Shift by itself. Holding Shift while typing or clicking still behaves normally.
