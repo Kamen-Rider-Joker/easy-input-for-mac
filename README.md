@@ -70,6 +70,7 @@ Set `SHIFTTYPE_DEBUG=1` when launching a development build to write bounded diag
 ## Sponsors
 
 - **EzTranslate** — [翻譯拍照](https://eztranslate.com.tw/)，快速又精準
+- [**Epub Translator**](https://epubtranslator.net/) — Translate complete EPUB books online
 
 ## License
 
