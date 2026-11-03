@@ -1,4 +1,5 @@
 import AppKit
+import ShiftTypeCore
 import SwiftUI
 
 enum ShiftTypeOnboardingStep: Int, CaseIterable {
@@ -34,10 +35,10 @@ final class ShiftTypeOnboardingModel: ObservableObject {
 final class OnboardingWindowController: NSWindowController {
     private let hostingController: NSHostingController<ShiftTypeOnboardingView>
 
-    init(view: ShiftTypeOnboardingView) {
+    init(view: ShiftTypeOnboardingView, title: String) {
         let hostingController = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: hostingController)
-        window.title = "Set Up ShiftType"
+        window.title = title
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.setContentSize(NSSize(width: 600, height: 500))
@@ -56,10 +57,15 @@ final class OnboardingWindowController: NSWindowController {
         showWindow(nil)
         window?.makeKeyAndOrderFront(nil)
     }
+
+    func setTitle(_ title: String) {
+        window?.title = title
+    }
 }
 
 struct ShiftTypeOnboardingView: View {
     @ObservedObject var model: ShiftTypeOnboardingModel
+    @ObservedObject var localization: LocalizationManager
 
     let onBack: () -> Void
     let onContinue: () -> Void
@@ -67,6 +73,7 @@ struct ShiftTypeOnboardingView: View {
     let onRequestAccessibility: () -> Void
     let onOpenAccessibilitySettings: () -> Void
     let onOpenKeyboardSettings: () -> Void
+    let onLanguageChange: (ShiftTypeLanguagePreference) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -85,9 +92,10 @@ struct ShiftTypeOnboardingView: View {
             Group {
                 switch model.state.step {
                 case .welcome:
-                    WelcomeStep()
+                    WelcomeStep(localization: localization)
                 case .accessibility:
                     AccessibilityStep(
+                        localization: localization,
                         isAllowed: model.state.accessibilityAllowed,
                         serviceStartFailed: model.state.serviceStartFailed,
                         onAllow: onRequestAccessibility,
@@ -96,6 +104,7 @@ struct ShiftTypeOnboardingView: View {
                     )
                 case .practice:
                     PracticeStep(
+                        localization: localization,
                         availableSourceCount: model.state.availableSourceCount,
                         currentSourceName: model.state.currentSourceName,
                         succeeded: model.state.practiceSucceeded,
@@ -112,8 +121,25 @@ struct ShiftTypeOnboardingView: View {
             HStack {
                 if model.state.step != .welcome
                     && !(model.state.isRecovery && model.state.step == .accessibility) {
-                    Button("Back", action: onBack)
+                    Button(localization.string(.back), action: onBack)
                 }
+
+                Picker(
+                    localization.string(.language),
+                    selection: Binding(
+                        get: { localization.preference },
+                        set: { onLanguageChange($0) }
+                    )
+                ) {
+                    ForEach(ShiftTypeLanguagePreference.allCases) { option in
+                        Text(localization.displayName(for: option))
+                            .tag(option)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .fixedSize()
+                .help(localization.string(.language))
 
                 Spacer()
 
@@ -139,26 +165,30 @@ struct ShiftTypeOnboardingView: View {
 
     private var primaryButtonTitle: String {
         if model.state.isRecovery && model.state.step == .accessibility {
-            return "Done"
+            return localization.string(.done)
         }
         if model.state.step == .practice {
-            return "Start Using ShiftType"
+            return localization.string(.startUsing)
         }
-        return "Continue"
+        return localization.string(.continueButton)
     }
 }
 
 private struct WelcomeStep: View {
+    @ObservedObject var localization: LocalizationManager
+
     var body: some View {
         OnboardingPage(
             icon: "shift.fill",
-            title: "Switch input methods with Shift",
-            detail: "Tap either Shift key by itself to cycle through every enabled input method. Shift still behaves normally while typing, selecting, clicking, or scrolling."
+            title: localization.string(.welcomeTitle),
+            detail: localization.string(.welcomeDetail)
         )
     }
 }
 
 private struct AccessibilityStep: View {
+    @ObservedObject var localization: LocalizationManager
+
     let isAllowed: Bool
     let serviceStartFailed: Bool
     let onAllow: () -> Void
@@ -168,23 +198,23 @@ private struct AccessibilityStep: View {
     var body: some View {
         OnboardingPage(
             icon: "accessibility",
-            title: "Allow Accessibility",
-            detail: "ShiftType uses Accessibility to detect a standalone Shift tap and apply app-specific input method rules."
+            title: localization.string(.allowAccessibility),
+            detail: localization.string(.allowAccessibilityDetail)
         ) {
             if serviceStartFailed {
-                Text("ShiftType couldn’t start keyboard monitoring.")
+                Text(localization.string(.keyboardMonitoringFailed))
                     .font(.callout)
                     .foregroundStyle(.secondary)
-                Button("Retry ShiftType", action: onRetry)
+                Button(localization.string(.retryShiftType), action: onRetry)
                     .buttonStyle(.borderedProminent)
             } else if isAllowed {
-                Label("Allowed", systemImage: "checkmark.circle.fill")
+                Label(localization.string(.allowed), systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.green)
                     .font(.headline)
             } else {
-                Button("Allow Accessibility", action: onAllow)
+                Button(localization.string(.allowAccessibilityButton), action: onAllow)
                     .buttonStyle(.borderedProminent)
-                Button("Open System Settings", action: onOpenSettings)
+                Button(localization.string(.openSystemSettings), action: onOpenSettings)
                     .buttonStyle(.link)
             }
         }
@@ -193,6 +223,8 @@ private struct AccessibilityStep: View {
 
 private struct PracticeStep: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @ObservedObject var localization: LocalizationManager
 
     let availableSourceCount: Int
     let currentSourceName: String?
@@ -203,8 +235,8 @@ private struct PracticeStep: View {
     var body: some View {
         OnboardingPage(
             icon: "shift.fill",
-            title: "Try ShiftType",
-            detail: "Tap either Shift key by itself. Your input method should change."
+            title: localization.string(.tryShiftType),
+            detail: localization.string(.tryShiftTypeDetail)
         ) {
             Label(displayedSourceName, systemImage: "keyboard")
                 .font(.headline)
@@ -215,10 +247,10 @@ private struct PracticeStep: View {
                 .clipShape(Capsule())
 
             if availableSourceCount < 2 {
-                Text("ShiftType needs at least two enabled input methods.")
+                Text(localization.string(.needsTwoInputMethods))
                     .font(.callout)
                     .foregroundStyle(.secondary)
-                Button("Open Keyboard Settings", action: onOpenKeyboardSettings)
+                Button(localization.string(.openKeyboardSettings), action: onOpenKeyboardSettings)
                     .buttonStyle(.link)
             } else {
                 if succeeded {
@@ -227,7 +259,7 @@ private struct PracticeStep: View {
                         .foregroundStyle(.green)
                         .transition(successTransition)
                 } else {
-                    Text("Waiting for a Shift tap…")
+                    Text(localization.string(.waitingForShiftTap))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .transition(successTransition)
@@ -239,11 +271,12 @@ private struct PracticeStep: View {
     }
 
     private var displayedSourceName: String {
-        switchedSourceName ?? currentSourceName ?? "Current input method"
+        switchedSourceName ?? currentSourceName ?? localization.string(.currentInputMethod)
     }
 
     private var successMessage: String {
-        switchedSourceName.map { "Switched to \($0)" } ?? "Input method switched"
+        switchedSourceName.map(localization.switchedTo)
+            ?? localization.string(.inputMethodSwitched)
     }
 
     private var successAnimation: Animation {

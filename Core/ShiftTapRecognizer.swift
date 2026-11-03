@@ -4,9 +4,14 @@ public struct ShiftTapRecognizer {
 
     public init() { }
 
+    public var canCompleteAsStandaloneTap: Bool {
+        isShiftDown && isTapCandidate
+    }
+
     public mutating func handleFlagsChanged(
         shiftIsDown: Bool,
-        hasOtherModifiers: Bool
+        hasOtherModifiers: Bool,
+        hasActiveTextComposition: Bool = false
     ) -> Bool {
         if shiftIsDown {
             if isShiftDown {
@@ -15,14 +20,16 @@ public struct ShiftTapRecognizer {
                 isTapCandidate = false
             } else {
                 isShiftDown = true
-                isTapCandidate = !hasOtherModifiers
+                isTapCandidate = !hasOtherModifiers && !hasActiveTextComposition
             }
             return false
         }
 
         guard isShiftDown else { return false }
 
-        let shouldCycle = isTapCandidate
+        // Switching input sources while an input method has marked text can leave
+        // its candidate window orphaned. Let the current composition finish first.
+        let shouldCycle = isTapCandidate && !hasActiveTextComposition
         reset()
         return shouldCycle
     }

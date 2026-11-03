@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_NAME="ShiftType"
 BUNDLE_ID="com.sergey.shifttype"
-VERSION="0.1.0"
+VERSION="0.2.1"
 SIGNING_IDENTITY="${SHIFTTYPE_SIGNING_IDENTITY:--}"
 if [ -z "${BUILD_NUMBER:-}" ]; then
     if git rev-parse --verify HEAD >/dev/null 2>&1; then

@@ -4,14 +4,15 @@ import UniformTypeIdentifiers
 
 struct AppRulesView: View {
     @ObservedObject var inputManager: InputSourceManager
+    @ObservedObject var localization: LocalizationManager
     @State private var selection: Set<String> = []
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("Lock an input method in specific apps.")
+                Text(localization.string(.appRulesHeadline))
                     .font(.headline)
-                Text("A rule switches to that input method when the app gains focus and blocks Shift cycling until you leave.")
+                Text(localization.string(.appRulesDetail))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -28,9 +29,9 @@ struct AppRulesView: View {
                         Image(systemName: "square.grid.2x2")
                             .font(.system(size: 30, weight: .light))
                             .foregroundStyle(.secondary)
-                        Text("No App Rules")
+                        Text(localization.string(.noAppRules))
                             .font(.headline)
-                        Text("Add an app to keep one input method locked while you use it.")
+                        Text(localization.string(.noAppRulesDetail))
                             .font(.callout)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -50,11 +51,12 @@ struct AppRulesView: View {
                             Spacer(minLength: 16)
 
                             Picker(
-                                "Input method for \(rule.name)",
+                                localization.inputMethodLabel(for: rule.name),
                                 selection: inputSourceBinding(for: rule.bundleID)
                             ) {
                                 if !inputManager.isSourceAvailable(rule.inputSourceID) {
-                                    Text("Unavailable Input Method").tag(rule.inputSourceID)
+                                    Text(localization.string(.unavailableInputMethod))
+                                        .tag(rule.inputSourceID)
                                     Divider()
                                 }
                                 ForEach(inputManager.availableSources, id: \.id) { source in
@@ -68,7 +70,7 @@ struct AppRulesView: View {
                         .padding(.vertical, 4)
                         .tag(rule.bundleID)
                         .contextMenu {
-                            Button("Remove Rule", role: .destructive) {
+                            Button(localization.string(.removeRule), role: .destructive) {
                                 removeRule(bundleID: rule.bundleID)
                             }
                         }
@@ -82,15 +84,15 @@ struct AppRulesView: View {
 
             HStack(spacing: 8) {
                 Button(action: addApps) {
-                    Label("Add App…", systemImage: "plus")
+                    Label(localization.string(.addApp), systemImage: "plus")
                 }
-                .help("Add an app rule")
+                .help(localization.string(.addAppHelp))
 
                 Button(action: removeSelected) {
-                    Label("Remove", systemImage: "minus")
+                    Label(localization.string(.remove), systemImage: "minus")
                 }
                 .disabled(selection.isEmpty)
-                .help("Remove the selected app rules")
+                .help(localization.string(.removeHelp))
 
                 Spacer()
 
@@ -106,8 +108,7 @@ struct AppRulesView: View {
     }
 
     private var appCountLabel: String {
-        let count = inputManager.appRules.count
-        return "\(count) \(count == 1 ? "app" : "apps")"
+        localization.appCount(inputManager.appRules.count)
     }
 
     private func inputSourceBinding(for bundleID: String) -> Binding<String> {
@@ -121,9 +122,9 @@ struct AppRulesView: View {
 
     private func addApps() {
         let panel = NSOpenPanel()
-        panel.title = "Add App Rule"
-        panel.message = "Choose one or more apps whose input method ShiftType should lock."
-        panel.prompt = "Add"
+        panel.title = localization.string(.addAppRuleTitle)
+        panel.message = localization.string(.addAppRuleMessage)
+        panel.prompt = localization.string(.addButton)
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
