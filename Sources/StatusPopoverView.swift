@@ -74,6 +74,7 @@ struct ShiftTypePopoverView: View {
         }
         .padding(16)
         .frame(width: 332)
+        .background(panelBackground)
         .opacity(isPresented ? 1 : 0)
         .scaleEffect(
             isPresented || reduceMotion ? 1 : 0.97,
@@ -91,7 +92,20 @@ struct ShiftTypePopoverView: View {
         HStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.14))
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.accentColor.opacity(colorScheme == .dark ? 0.46 : 0.30),
+                                Color.accentColor.opacity(colorScheme == .dark ? 0.18 : 0.12)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .strokeBorder(Color.accentColor.opacity(0.22), lineWidth: 0.5)
+
                 Image(systemName: headerSymbol)
                     .font(.system(size: 19, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
@@ -131,7 +145,7 @@ struct ShiftTypePopoverView: View {
     }
 
     private var readyContent: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 0) {
             Button(action: onAppRules) {
                 PopoverRow(
                     symbol: "app.badge.checkmark",
@@ -142,36 +156,50 @@ struct ShiftTypePopoverView: View {
             }
             .buttonStyle(PopoverRowButtonStyle())
 
-            Divider()
-                .padding(.leading, 42)
+            rowDivider
 
-            languageControl
+            languageRow
 
-            Divider()
-                .padding(.leading, 42)
+            rowDivider
 
-            Toggle(
-                isOn: Binding(
-                    get: { model.state.launchAtLoginEnabled },
-                    set: { _ in onToggleLaunchAtLogin() }
-                )
-            ) {
-                PopoverLabel(
-                    symbol: "power",
-                    title: localization.string(.launchAtLogin),
-                    detail: localization.string(.launchAtLoginDetail)
-                )
-            }
-            .toggleStyle(.switch)
-            .controlSize(.small)
-            .padding(.vertical, 2)
+            launchAtLoginRow
         }
-        .padding(10)
+        .padding(.vertical, 4)
         .background(cardFill, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 13, style: .continuous)
                 .strokeBorder(cardBorder, lineWidth: 0.5)
         }
+    }
+
+    private var launchAtLoginRow: some View {
+        HStack(spacing: 10) {
+            PopoverLabel(
+                symbol: "power",
+                title: localization.string(.launchAtLogin),
+                detail: localization.string(.launchAtLoginDetail)
+            )
+
+            Spacer(minLength: 8)
+
+            Toggle(
+                localization.string(.launchAtLogin),
+                isOn: Binding(
+                    get: { model.state.launchAtLoginEnabled },
+                    set: { _ in onToggleLaunchAtLogin() }
+                )
+            )
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
+        }
+        .popoverRowLayout()
+    }
+
+    private var rowDivider: some View {
+        Divider()
+            .padding(.leading, 40)
+            .padding(.trailing, 10)
     }
 
     private var setupContent: some View {
@@ -225,8 +253,7 @@ struct ShiftTypePopoverView: View {
     }
 
     private var languageCard: some View {
-        languageControl
-            .padding(10)
+        languageRow
             .background(cardFill, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 13, style: .continuous)
@@ -234,7 +261,7 @@ struct ShiftTypePopoverView: View {
             }
     }
 
-    private var languageControl: some View {
+    private var languageRow: some View {
         HStack(spacing: 10) {
             PopoverLabel(
                 symbol: "globe",
@@ -259,10 +286,9 @@ struct ShiftTypePopoverView: View {
             .labelsHidden()
             .pickerStyle(.menu)
             .controlSize(.small)
-            .frame(width: 116, alignment: .trailing)
+            .fixedSize()
         }
-        .padding(.horizontal, 2)
-        .padding(.vertical, 3)
+        .popoverRowLayout()
     }
 
     private var headerSymbol: String {
@@ -311,10 +337,34 @@ struct ShiftTypePopoverView: View {
         }
     }
 
+    private var panelBackground: some View {
+        ZStack {
+            LinearGradient(
+                stops: [
+                    .init(color: Color.accentColor.opacity(colorScheme == .dark ? 0.30 : 0.34), location: 0.0),
+                    .init(color: Color.accentColor.opacity(colorScheme == .dark ? 0.12 : 0.13), location: 0.38),
+                    .init(color: Color.accentColor.opacity(colorScheme == .dark ? 0.03 : 0.03), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            RadialGradient(
+                colors: [
+                    Color.white.opacity(colorScheme == .dark ? 0.05 : 0.20),
+                    Color.clear
+                ],
+                center: .init(x: 0.08, y: -0.12),
+                startRadius: 0,
+                endRadius: 120
+            )
+        }
+    }
+
     private var cardFill: Color {
         colorScheme == .dark
             ? Color.white.opacity(0.06)
-            : Color.black.opacity(0.045)
+            : Color.white.opacity(0.58)
     }
 
     private var cardBorder: Color {
@@ -393,9 +443,17 @@ private struct PopoverRow: View {
                 .foregroundStyle(.tertiary)
                 .accessibilityHidden(true)
         }
-        .padding(.horizontal, 2)
-        .padding(.vertical, 3)
+        .popoverRowLayout()
         .contentShape(Rectangle())
+    }
+}
+
+private extension View {
+    func popoverRowLayout() -> some View {
+        self
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
