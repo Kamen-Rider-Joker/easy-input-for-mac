@@ -17,6 +17,7 @@ ShiftType works on macOS Ventura 13 or higher.
 - Tap either Shift key by itself to cycle through all enabled input methods.
 - Keep normal Shift shortcuts, capital letters, selections, clicks, and scrolling unchanged.
 - Lock one input method to any app.
+- Switch between English and Simplified Chinese, or follow the macOS system language.
 - Launch automatically when you log in.
 - No analytics or network access.
 
@@ -41,6 +42,7 @@ ShiftType observes key and modifier event types only long enough to distinguish 
 1. Enable the input methods you want in macOS System Settings.
 2. Tap Shift by itself to move to the next enabled input method.
 3. Open **App Rules…** to lock an input method to a specific app.
+4. Use **Language** in the menu bar panel to follow the system language or choose English or Simplified Chinese.
 
 If another input method or utility already uses Shift alone as a shortcut, disable that shortcut there to avoid double switching.
 

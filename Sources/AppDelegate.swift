@@ -6,10 +6,12 @@ import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let inputManager = InputSourceManager()
+    let localization = LocalizationManager()
 
     private let shiftMonitor = ShiftKeyMonitor()
     private var statusItem: NSStatusItem!
     private var cancellable: AnyCancellable?
+    private var localizationCancellable: AnyCancellable?
     private var accessibilityAllowed = false
     private var servicesStarted = false
     private var serviceStartFailed = false
@@ -21,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var onboardingModel: ShiftTypeOnboardingModel?
     private var onboardingWindowController: OnboardingWindowController?
     private var appRulesWindow: NSWindow?
+    private var statusPopover: NSPopover?
+    private var statusPopoverModel: ShiftTypePopoverModel?
 
     private static let onboardingCompletedKey = "onboardingCompleted"
     private static let onboardingStepKey = "onboardingStep"
@@ -34,7 +38,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         loadOnboardingState()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.button?.target = self
+        statusItem.button?.action = #selector(toggleStatusPopover(_:))
+        statusPopoverModel = ShiftTypePopoverModel(state: makeStatusPopoverState())
         updateInterface()
+
+        localizationCancellable = localization.objectWillChange.sink { [weak self] in
+            DispatchQueue.main.async {
+                self?.updateInterface()
+            }
+        }
 
         cancellable = inputManager.objectWillChange.sink { [weak self] in
             DispatchQueue.main.async {
@@ -75,6 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidBecomeActive(_ notification: Notification) {
         refreshPermission()
+        localization.refreshSystemLanguage()
         updateInterface()
     }
 
@@ -83,8 +97,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func updateInterface() {
         guard statusItem != nil else { return }
         updateIcon()
-        rebuildMenu()
+        updateStatusPopover()
         onboardingModel?.update(state: makeOnboardingState())
+        appRulesWindow?.title = localization.string(.appRulesWindowTitle)
+        onboardingWindowController?.setTitle(localization.string(.setUpWindowTitle))
     }
 
     private func updateIcon() {
@@ -96,10 +112,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         if !accessibilityAllowed || !onboardingCompleted {
             statusItem.button?.toolTip = accessibilityAllowed
-                ? "Finish setting up ShiftType"
-                : "ShiftType needs permission"
+                ? localization.string(.finishSetupTooltip)
+                : localization.string(.needsPermissionTooltip)
         } else if serviceStartFailed {
-            statusItem.button?.toolTip = "ShiftType couldn’t start keyboard monitoring"
+            statusItem.button?.toolTip = localization.string(.monitoringTooltip)
         } else if let sourceName = inputManager.currentSourceName {
             statusItem.button?.toolTip = "ShiftType · \(sourceName)"
         } else {
@@ -107,66 +123,88 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
-    private func rebuildMenu() {
-        let menu = NSMenu()
-
-        guard accessibilityAllowed, onboardingCompleted else {
-            let setupItem = NSMenuItem(
-                title: "Set Up ShiftType…",
-                action: #selector(showPermissionSetup),
-                keyEquivalent: ""
-            )
-            setupItem.target = self
-            setupItem.image = NSImage(systemSymbolName: "hand.raised", accessibilityDescription: nil)
-            menu.addItem(setupItem)
-            menu.addItem(.separator())
-            addAboutAndQuitItems(to: menu)
-            statusItem.menu = menu
-            return
-        }
-
-        if serviceStartFailed {
-            let status = NSMenuItem(title: "Keyboard Monitoring Unavailable", action: nil, keyEquivalent: "")
-            status.isEnabled = false
-            menu.addItem(status)
-
-            let retry = NSMenuItem(title: "Retry ShiftType", action: #selector(retryServices), keyEquivalent: "")
-            retry.target = self
-            retry.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: nil)
-            menu.addItem(retry)
-            menu.addItem(.separator())
-            addAboutAndQuitItems(to: menu)
-            statusItem.menu = menu
-            return
-        }
-
-        let appRulesItem = NSMenuItem(title: "App Rules…", action: #selector(showAppRules), keyEquivalent: "")
-        appRulesItem.target = self
-        appRulesItem.image = NSImage(systemSymbolName: "app.badge.checkmark", accessibilityDescription: nil)
-        menu.addItem(appRulesItem)
-
-        let loginItem = NSMenuItem(
-            title: "Launch at Login",
-            action: #selector(toggleLaunchAtLogin),
-            keyEquivalent: ""
-        )
-        loginItem.target = self
-        loginItem.state = isLaunchAtLoginEnabled ? .on : .off
-        menu.addItem(loginItem)
-        menu.addItem(.separator())
-
-        addAboutAndQuitItems(to: menu)
-        statusItem.menu = menu
+    private func updateStatusPopover() {
+        statusPopoverModel?.update(state: makeStatusPopoverState())
     }
 
-    private func addAboutAndQuitItems(to menu: NSMenu) {
-        let about = NSMenuItem(title: "About ShiftType", action: #selector(showAbout), keyEquivalent: "")
-        about.target = self
-        about.image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: nil)
-        menu.addItem(about)
+    private func makeStatusPopoverState() -> ShiftTypePopoverState {
+        let mode: ShiftTypePopoverMode
+        if !accessibilityAllowed || !onboardingCompleted {
+            mode = .setup
+        } else if serviceStartFailed {
+            mode = .serviceUnavailable
+        } else {
+            mode = .ready
+        }
 
-        let quit = NSMenuItem(title: "Quit ShiftType", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        menu.addItem(quit)
+        return ShiftTypePopoverState(
+            mode: mode,
+            currentSourceName: inputManager.currentSourceName,
+            appRuleCount: inputManager.appRules.count,
+            launchAtLoginEnabled: isLaunchAtLoginEnabled
+        )
+    }
+
+    @objc private func toggleStatusPopover(_ sender: NSStatusBarButton) {
+        if statusPopover?.isShown == true {
+            statusPopover?.performClose(nil)
+            return
+        }
+
+        inputManager.refreshSources()
+        updateStatusPopover()
+
+        let popover = statusPopover ?? makeStatusPopover()
+        statusPopover = popover
+
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
+    }
+
+    private func makeStatusPopover() -> NSPopover {
+        let popoverModel = statusPopoverModel ?? ShiftTypePopoverModel(state: makeStatusPopoverState())
+        statusPopoverModel = popoverModel
+
+        let view = ShiftTypePopoverView(
+            model: popoverModel,
+            localization: localization,
+            onSetup: { [weak self] in
+                self?.closeStatusPopover()
+                self?.showPermissionSetup()
+            },
+            onRetry: { [weak self] in
+                self?.retryServices()
+            },
+            onAppRules: { [weak self] in
+                self?.closeStatusPopover()
+                self?.showAppRules()
+            },
+            onToggleLaunchAtLogin: { [weak self] in
+                self?.toggleLaunchAtLogin()
+            },
+            onLanguageChange: { [weak self] preference in
+                self?.localization.select(preference)
+            },
+            onAbout: { [weak self] in
+                self?.closeStatusPopover()
+                self?.showAbout()
+            },
+            onQuit: {
+                NSApplication.shared.terminate(nil)
+            }
+        )
+        let hostingController = NSHostingController(rootView: view)
+        hostingController.sizingOptions = .preferredContentSize
+
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = true
+        popover.contentViewController = hostingController
+        return popover
+    }
+
+    private func closeStatusPopover() {
+        statusPopover?.performClose(nil)
     }
 
     // MARK: - Actions
@@ -188,14 +226,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
-        let view = AppRulesView(inputManager: inputManager)
+        let view = AppRulesView(
+            inputManager: inputManager,
+            localization: localization
+        )
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 580, height: 420),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
-        window.title = "App Rules"
+        window.title = localization.string(.appRulesWindowTitle)
         window.contentView = NSHostingView(rootView: view)
         window.contentMinSize = NSSize(width: 520, height: 340)
         window.tabbingMode = .disallowed
@@ -219,7 +260,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let model = ShiftTypeOnboardingModel(state: makeOnboardingState())
             onboardingModel = model
             let view = makeOnboardingView(model: model)
-            onboardingWindowController = OnboardingWindowController(view: view)
+            onboardingWindowController = OnboardingWindowController(
+                view: view,
+                title: localization.string(.setUpWindowTitle)
+            )
         }
 
         NSApplication.shared.activate(ignoringOtherApps: true)
@@ -236,15 +280,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             case .notRegistered:
                 try SMAppService.mainApp.register()
             case .notFound:
-                showLaunchAtLoginError("macOS could not find ShiftType as a login item. Install it in Applications, then try again.")
+                showLaunchAtLoginError(localization.string(.loginItemNotFound))
             @unknown default:
-                showLaunchAtLoginError("macOS returned an unknown Launch at Login status.")
+                showLaunchAtLoginError(localization.string(.loginItemUnknownStatus))
             }
         } catch {
             Diagnostics.event("launch-at-login-failed error=\(error)")
             showLaunchAtLoginError(error.localizedDescription)
         }
-        rebuildMenu()
+        updateStatusPopover()
     }
 
     @objc private func showAbout() {
@@ -253,7 +297,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .applicationName: "ShiftType",
             .applicationVersion: version,
             .credits: NSAttributedString(
-                string: "Tap Shift to cycle input methods. Lock one wherever it belongs.",
+                string: localization.string(.aboutCredits),
                 attributes: [.font: NSFont.systemFont(ofSize: 11)]
             ),
         ])
@@ -263,9 +307,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func showLaunchAtLoginError(_ details: String) {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Couldn’t Change Launch at Login"
+        alert.messageText = localization.string(.launchAtLoginErrorTitle)
         alert.informativeText = details
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: localization.string(.ok))
         NSApplication.shared.activate(ignoringOtherApps: true)
         alert.runModal()
     }
@@ -359,12 +403,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     ) -> ShiftTypeOnboardingView {
         ShiftTypeOnboardingView(
             model: model,
+            localization: localization,
             onBack: { [weak self] in self?.goBackInOnboarding() },
             onContinue: { [weak self] in self?.advanceOnboarding() },
             onRetryServices: { [weak self] in self?.retryServices() },
             onRequestAccessibility: { [weak self] in self?.requestAccessibilityPermission() },
             onOpenAccessibilitySettings: { [weak self] in self?.openAccessibilitySettings() },
-            onOpenKeyboardSettings: { [weak self] in self?.openKeyboardSettings() }
+            onOpenKeyboardSettings: { [weak self] in self?.openKeyboardSettings() },
+            onLanguageChange: { [weak self] preference in
+                self?.localization.select(preference)
+            }
         )
     }
 

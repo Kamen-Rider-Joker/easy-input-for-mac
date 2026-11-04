@@ -1,10 +1,15 @@
-import SwiftUI
+import AppKit
 
 @main
-struct ShiftTypeApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+struct ShiftTypeApplication {
+    @MainActor
+    static func main() {
+        let application = NSApplication.shared
+        let delegate = AppDelegate()
 
-    var body: some Scene {
-        Settings { }
+        application.delegate = delegate
+        withExtendedLifetime(delegate) {
+            application.run()
+        }
     }
 }

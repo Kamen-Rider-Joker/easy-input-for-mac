@@ -85,10 +85,21 @@ final class ShiftKeyMonitor {
                 .maskAlternate,
                 .maskSecondaryFn,
             ]
+            let hasOtherModifiers = !flags.intersection(otherModifiers).isEmpty
+                || !pressedMouseButtons.isEmpty
+            let shiftIsDown = flags.contains(.maskShift)
+            let shouldCheckForTextComposition = !shiftIsDown
+                && !hasOtherModifiers
+                && recognizer.canCompleteAsStandaloneTap
+            let hasActiveTextComposition = shouldCheckForTextComposition
+                && TextCompositionMonitor.hasActiveComposition()
+            if hasActiveTextComposition {
+                Diagnostics.event("shift-tap-blocked reason=active-text-composition")
+            }
             let shouldCycle = recognizer.handleFlagsChanged(
-                shiftIsDown: flags.contains(.maskShift),
-                hasOtherModifiers: !flags.intersection(otherModifiers).isEmpty
-                    || !pressedMouseButtons.isEmpty
+                shiftIsDown: shiftIsDown,
+                hasOtherModifiers: hasOtherModifiers,
+                hasActiveTextComposition: hasActiveTextComposition
             )
             if shouldCycle {
                 DispatchQueue.main.async { [weak self] in

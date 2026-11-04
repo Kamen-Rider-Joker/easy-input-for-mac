@@ -53,10 +53,69 @@ struct ShiftTapRecognizerSelfTests {
             "unmatched release does nothing"
         )
 
+        var composingAtPress = ShiftTapRecognizer()
+        _ = composingAtPress.handleFlagsChanged(
+            shiftIsDown: true,
+            hasOtherModifiers: false,
+            hasActiveTextComposition: true
+        )
+        check(
+            !composingAtPress.handleFlagsChanged(
+                shiftIsDown: false,
+                hasOtherModifiers: false,
+                hasActiveTextComposition: true
+            ),
+            "composition at press does not cycle"
+        )
+
+        var composingAtRelease = ShiftTapRecognizer()
+        _ = composingAtRelease.handleFlagsChanged(
+            shiftIsDown: true,
+            hasOtherModifiers: false,
+            hasActiveTextComposition: false
+        )
+        check(
+            !composingAtRelease.handleFlagsChanged(
+                shiftIsDown: false,
+                hasOtherModifiers: false,
+                hasActiveTextComposition: true
+            ),
+            "composition at release does not cycle"
+        )
+
+        check(
+            ShiftTypeLanguageResolver.resolve(
+                preference: .system,
+                preferredLanguages: ["zh-Hans-CN", "en-US"]
+            ) == .simplifiedChinese,
+            "system preference follows Chinese"
+        )
+        check(
+            ShiftTypeLanguageResolver.resolve(
+                preference: .system,
+                preferredLanguages: ["en-US", "zh-Hans-CN"]
+            ) == .english,
+            "system preference follows English"
+        )
+        check(
+            ShiftTypeLanguageResolver.resolve(
+                preference: .english,
+                preferredLanguages: ["zh-Hans-CN"]
+            ) == .english,
+            "explicit English overrides system"
+        )
+        check(
+            ShiftTypeLanguageResolver.resolve(
+                preference: .simplifiedChinese,
+                preferredLanguages: ["en-US"]
+            ) == .simplifiedChinese,
+            "explicit Chinese overrides system"
+        )
+
         guard failures.isEmpty else {
             fatalError("Shift tap self-tests failed: \(failures.joined(separator: ", "))")
         }
 
-        print("Shift tap self-tests passed (7 checks)")
+        print("ShiftType self-tests passed (13 checks)")
     }
 }
